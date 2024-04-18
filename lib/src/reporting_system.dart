@@ -15,7 +15,7 @@ class ReportingSystem {
     sb.write(message);
     if (appendDateTime) {
       sb.write(
-        '[Event recorded at ${DateTime.now().toIso8601String()}]',
+        '[Event recorded at ${DateTime.now().toIso8601String()} by fsignalr library]',
       );
     }
     final String result = sb.toString();
