@@ -273,7 +273,8 @@ class HubConnection {
         throw _stopDuringStartError!;
       }
       await ReportingSystem.recordEvent(
-        message: 'HubConnection._startInternal try block completed successfully',
+        message:
+            'HubConnection._startInternal try block completed successfully',
         stackTrace: StackTrace.current,
         tags: {'eventSource': _reportingSystemTag},
       );
@@ -300,6 +301,11 @@ class HubConnection {
   /// Returns a Promise that resolves when the connection has been successfully terminated, or rejects with an error.
   ///
   Future<void> stop() async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection.stop called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     // Capture the start promise before the connection might be restarted in an onclose callback.
     final startPromise = _startPromise;
 
@@ -309,21 +315,45 @@ class HubConnection {
     try {
       // Awaiting undefined continues immediately
       await startPromise;
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection.stop completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
     } catch (e) {
       // This exception is returned to the user as a rejected Promise from the start method.
+      await ReportingSystem.recordError(
+        error: e,
+        stackTrace: StackTrace.current,
+      );
     }
   }
 
   Future<void>? _stopInternal({Exception? error}) async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._stopInternal called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     if (_connectionState == HubConnectionState.disconnected) {
       _logger?.finer(
           "Call to HubConnection.stop($error) ignored because it is already in the disconnected state.");
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._stopInternal completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       return Future.value();
     }
 
     if (_connectionState == HubConnectionState.disconnecting) {
       _logger?.finer(
           "Call to HttpConnection.stop($error) ignored because the connection is already in the disconnecting state.");
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._stopInternal completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       return _stopPromise;
     }
 
@@ -340,6 +370,11 @@ class HubConnection {
 
       _cleanupReconnectTimer();
       _completeClose();
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._stopInternal completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       return Future.value();
     }
 
@@ -352,6 +387,11 @@ class HubConnection {
     // HttpConnection.stop() should not complete until after either HttpConnection.start() fails
     // or the onclose callback is invoked. The onclose callback will transition the HubConnection
     // to the disconnected state if need be before HttpConnection.stop() completes.
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._stopInternal calling connection.stop',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     return _connection.stop(error: error);
   }
 
@@ -407,16 +447,36 @@ class HubConnection {
     return streamController.stream;
   }
 
-  Future<void> _sendMessage(Object? message) {
+  Future<void> _sendMessage(Object? message) async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._sendMessage called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _resetKeepAliveInterval();
-    return _connection.send(message);
+    await _connection.send(message);
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._sendMessage completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   /// Sends a js object to the server.
   /// message: The object to serialize and send.
   ///
-  Future<void> _sendWithProtocol(Object message) {
-    return _sendMessage(_protocol.writeMessage(message as HubMessageBase));
+  Future<void> _sendWithProtocol(Object message) async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._sendWithProtocol called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
+    await _sendMessage(_protocol.writeMessage(message as HubMessageBase));
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._sendWithProtocol completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   /// Invokes a hub method on the server using the specified name and arguments. Does not wait for a response from the receiver.
@@ -428,14 +488,24 @@ class HubConnection {
   /// args: The arguments used to invoke the server method.
   /// Returns a Promise that resolves when the invocation has been successfully sent, or rejects with an error.
   ///
-  Future<void> send(String methodName, {List<Object>? args}) {
+  Future<void> send(String methodName, {List<Object>? args}) async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection.send called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     args = args ?? [];
     final t = _replaceStreamingParams(args);
     final sendPromise =
         _sendWithProtocol(_createInvocation(methodName, args, true, t.item2));
 
     _launchStreams(t.item1, sendPromise);
-    return sendPromise;
+    await sendPromise;
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection.send completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   /// Invokes a hub method on the server using the specified name and arguments.
@@ -554,6 +624,11 @@ class HubConnection {
   /// callback: The handler that will be invoked when the connection is closed. Optionally receives a single argument containing the error that caused the connection to close (if any).
   ///
   void onclose(ClosedCallback callback) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection.onclose called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _closedCallbacks.add(callback);
   }
 
@@ -562,6 +637,11 @@ class HubConnection {
   /// callback: The handler that will be invoked when the connection starts reconnecting. Optionally receives a single argument containing the error that caused the connection to start reconnecting (if any).
   ///
   onreconnecting(ReconnectingCallback callback) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection.onreconnecting called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _reconnectingCallbacks.add(callback);
   }
 
@@ -570,10 +650,20 @@ class HubConnection {
   /// callback: The handler that will be invoked when the connection successfully reconnects.
   ///
   onreconnected(ReconnectedCallback callback) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection.onreconnected called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _reconnectedCallbacks.add(callback);
   }
 
   void _processIncomingData(Object? data) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._processIncomingData called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _cleanupTimeout();
 
     if (!_receivedHandshakeResponse) {
@@ -635,10 +725,21 @@ class HubConnection {
     }
 
     _resetTimeoutPeriod();
+
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._processIncomingData completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   /// data is either a string (json) or a Uint8List (binary)
   Object? _processHandshakeResponse(Object? data) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._processHandshakeResponse called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     ParseHandshakeResponseResult handshakeResult;
 
     try {
@@ -673,27 +774,74 @@ class HubConnection {
 
     if (!_handshakeCompleter!.isCompleted) _handshakeCompleter?.complete();
     _handshakeCompleter = null;
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._processHandshakeResponse completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     return handshakeResult.remainingData;
   }
 
   void _resetKeepAliveInterval() {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._resetKeepAliveInterval called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _cleanupPingTimer();
     _pingServerTimer =
         Timer.periodic(Duration(milliseconds: keepAliveIntervalInMilliseconds),
             (Timer t) async {
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._resetKeepAliveInterval timer callback',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       if (_connectionState == HubConnectionState.connected) {
         try {
+          await ReportingSystem.recordEvent(
+            message:
+                'HubConnection._resetKeepAliveInterval timer callback sending ping',
+            stackTrace: StackTrace.current,
+            tags: {'eventSource': _reportingSystemTag},
+          );
           await _sendMessage(_cachedPingMessage);
+          await ReportingSystem.recordEvent(
+            message:
+                'HubConnection._resetKeepAliveInterval timer callback sent ping',
+            stackTrace: StackTrace.current,
+            tags: {'eventSource': _reportingSystemTag},
+          );
         } catch (e) {
           // We don't care about the error. It should be seen elsewhere in the client.
           // The connection is probably in a bad or closed state now, cleanup the timer so it stops triggering
+          await ReportingSystem.recordError(
+            error: e,
+            stackTrace: StackTrace.current,
+          );
           _cleanupPingTimer();
         }
       }
+      await ReportingSystem.recordEvent(
+        message:
+            'HubConnection._resetKeepAliveInterval timer callback completed',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
     });
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._resetKeepAliveInterval completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   void _resetTimeoutPeriod() {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._resetTimeoutPeriod called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _cleanupTimeout();
     if ((_connection.features == null) ||
         (_connection.features!.inherentKeepAlive == null) ||
@@ -702,14 +850,29 @@ class HubConnection {
       _timeoutTimer = Timer.periodic(
           Duration(milliseconds: serverTimeoutInMilliseconds), _serverTimeout);
     }
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._resetTimeoutPeriod completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   void _serverTimeout(Timer t) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._serverTimeout called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     // The server hasn't talked to us in a while. It doesn't like us anymore ... :(
     // Terminate the connection, but we don't need to wait on the promise.
     _connection.stop(
         error: GeneralError(
             "Server timeout elapsed without receiving a message from the server."));
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._serverTimeout completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   void _invokeClientMethod(InvocationMessage invocationMessage) {
@@ -734,6 +897,11 @@ class HubConnection {
   }
 
   void _connectionClosed({Exception? error}) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._connectionClosed called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _logger?.finer(
         "HubConnection.connectionClosed($error) called while in state $_connectionState.");
 
@@ -769,9 +937,19 @@ class HubConnection {
     // 2. The Reconnecting state in which case the handshakeResolver will complete it and stopDuringStartError will fail the current reconnect attempt
     //    and potentially continue the reconnect() loop.
     // 3. The Disconnected state in which case we're already done.
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._connectionClosed completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   _completeClose({Exception? error}) {
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._completeClose called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     if (_connectionStarted) {
       _connectionState = HubConnectionState.disconnected;
       _connectionStarted = false;
@@ -785,9 +963,19 @@ class HubConnection {
             "An onclose callback called with error '$error' threw error '$e'.");
       }
     }
+    ReportingSystem.recordEvent(
+      message: 'HubConnection._completeClose completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   _reconnect({Exception? error}) async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._reconnect called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     final reconnectStartTime = DateTime.now();
     var previousReconnectAttempts = 0;
     Exception retryError = error ??
@@ -800,6 +988,11 @@ class HubConnection {
       _logger?.finer(
           "Connection not reconnecting because the IRetryPolicy returned null on the first reconnect attempt.");
       _completeClose(error: error);
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._reconnect completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       return;
     }
 
@@ -824,10 +1017,25 @@ class HubConnection {
     if (_connectionState != HubConnectionState.reconnecting) {
       _logger?.finer(
           "Connection left the reconnecting state in onreconnecting callback. Done reconnecting.");
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._reconnect completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       return;
     }
 
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._reconnect starting reconnect loop',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     while (nextRetryDelay != null) {
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._reconnect executing an iteration in reconnect loop iteration',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
       _logger?.info(
           "Reconnect attempt number $previousReconnectAttempts will start in $nextRetryDelay ms.");
 
@@ -836,10 +1044,20 @@ class HubConnection {
       if (_connectionState != HubConnectionState.reconnecting) {
         _logger?.finer(
             "Connection left the reconnecting state during reconnect delay. Done reconnecting.");
+        await ReportingSystem.recordEvent(
+          message: 'HubConnection._reconnect completed successfully',
+          stackTrace: StackTrace.current,
+          tags: {'eventSource': _reportingSystemTag},
+        );
         return;
       }
 
       try {
+        await ReportingSystem.recordEvent(
+          message: 'HubConnection._reconnect will call _startInternal',
+          stackTrace: StackTrace.current,
+          tags: {'eventSource': _reportingSystemTag},
+        );
         await _startInternal();
 
         _connectionState = HubConnectionState.connected;
@@ -854,6 +1072,12 @@ class HubConnection {
               "An onreconnected callback called with connectionId '${_connection.connectionId}; threw error '$e'.");
         }
 
+        await ReportingSystem.recordEvent(
+          message: 'HubConnection._reconnect completed successfully',
+          stackTrace: StackTrace.current,
+          tags: {'eventSource': _reportingSystemTag},
+        );
+
         return;
       } catch (e) {
         _logger?.info("Reconnect attempt failed because of error '$e'.");
@@ -861,6 +1085,11 @@ class HubConnection {
         if (_connectionState != HubConnectionState.reconnecting) {
           _logger?.finer(
               "Connection left the reconnecting state during reconnect attempt. Done reconnecting.");
+          await ReportingSystem.recordEvent(
+            message: 'HubConnection._reconnect completed successfully',
+            stackTrace: StackTrace.current,
+            tags: {'eventSource': _reportingSystemTag},
+          );
           return;
         }
 
@@ -869,6 +1098,11 @@ class HubConnection {
             previousReconnectAttempts++,
             DateTime.now().difference(reconnectStartTime).inMilliseconds,
             retryError);
+        await ReportingSystem.recordEvent(
+          message: 'HubConnection._reconnect will call _stopInternal',
+          stackTrace: StackTrace.current,
+          tags: {'eventSource': _reportingSystemTag},
+        );
       }
     }
 
@@ -876,6 +1110,12 @@ class HubConnection {
         "Reconnect retries have been exhausted after ${DateTime.now().difference(reconnectStartTime).inMilliseconds} ms and $previousReconnectAttempts failed attempts. Connection disconnecting.");
 
     _completeClose();
+
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._reconnect completed successfully',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
   }
 
   int? _getNextRetryDelay(

@@ -300,7 +300,12 @@ class HttpConnection implements IConnection {
   }
 
   @override
-  Future<void> send(Object? data) {
+  Future<void> send(Object? data) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.send() called.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     if (_connectionState != ConnectionState.connected) {
       return Future.error(GeneralError(
           "Cannot send data if the connection is not in the 'Connected' State."));
@@ -308,6 +313,11 @@ class HttpConnection implements IConnection {
 
     _sendQueue ??= TransportSendQueue(_transport);
 
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.send() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     // Transport will not be null if state is connected
     return _sendQueue!.send(data);
   }
@@ -340,6 +350,12 @@ class HttpConnection implements IConnection {
     // stopInternal should never throw so just observe it.
     await _stopInternal(error: error);
     await _stopPromise;
+
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.stop() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
   }
 
   Future<void> _stopInternal({Exception? error}) async {
@@ -499,6 +515,11 @@ class HttpConnection implements IConnection {
   }
 
   Future<NegotiateResponse> _getNegotiationResponse(String url) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.getNegotiationResponse() called with url: $url',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     MessageHeaders headers = MessageHeaders();
     headers.addMessageHeaders(_options.headers);
 
@@ -532,8 +553,17 @@ class HttpConnection implements IConnection {
         // So we set it equal to connectionId so all our logic can use connectionToken without being aware of the negotiate version
         negotiateResponse.connectionToken = negotiateResponse.connectionId;
       }
+      await ReportingSystem.recordEvent(
+        message: 'HttpConnection.getNegotiationResponse() completed.',
+        tags: {'eventSource': _reportingSystemTag},
+        stackTrace: StackTrace.current,
+      );
       return negotiateResponse;
     } catch (e) {
+      await ReportingSystem.recordError(
+        error: e,
+        stackTrace: StackTrace.current,
+      );
       _logger?.severe(
           "Failed to complete negotiation with the server: ${e.toString()}");
       return Future.error(e);
@@ -541,10 +571,21 @@ class HttpConnection implements IConnection {
   }
 
   String? _createConnectUrl(String? url, String? connectionToken) {
+    ReportingSystem.recordEvent(
+      message: 'HttpConnection._createConnectUrl() called with url: $url',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     if (connectionToken == null) {
       return url;
     }
 
+    ReportingSystem.recordEvent(
+      message:
+          'HttpConnection._createConnectUrl() completed with url: $url and connectionToken: $connectionToken',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     return "${url!}${!url.contains("?") ? "?" : "&"}id=$connectionToken";
   }
 
@@ -553,6 +594,11 @@ class HttpConnection implements IConnection {
       Object? requestedTransport,
       NegotiateResponse negotiateResponse,
       TransferFormat requestedTransferFormat) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection._createTransport() called with url: $url',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     var connectUrl = _createConnectUrl(url, negotiateResponse.connectionToken);
     if (_isITransport(requestedTransport)) {
       _logger?.finer(
@@ -568,6 +614,12 @@ class HttpConnection implements IConnection {
     final transports = negotiateResponse.availableTransports ?? [];
     NegotiateResponse? negotiate = negotiateResponse;
     for (var endpoint in transports) {
+      await ReportingSystem.recordEvent(
+        message:
+            'executing _createTransport loop with endpoint: ${endpoint.transport}',
+        tags: {'eventSource': _reportingSystemTag},
+        stackTrace: StackTrace.current,
+      );
       _connectionState = ConnectionState.connecting;
 
       try {
@@ -580,8 +632,18 @@ class HttpConnection implements IConnection {
 
       if (negotiate == null) {
         try {
+          await ReportingSystem.recordEvent(
+            message:
+                'HttpConnection._getNegotiationResponse() called with url: $url',
+            tags: {'eventSource': _reportingSystemTag},
+            stackTrace: StackTrace.current,
+          );
           negotiate = await _getNegotiationResponse(url!);
         } catch (ex) {
+          await ReportingSystem.recordError(
+            error: ex,
+            stackTrace: StackTrace.current,
+          );
           return Future.error(ex);
         }
         connectUrl = _createConnectUrl(url, negotiate.connectionToken);
@@ -605,16 +667,37 @@ class HttpConnection implements IConnection {
         }
       }
     }
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection._createTransport() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
 
     if (transportExceptions.isNotEmpty) {
+      await ReportingSystem.recordError(
+        error: GeneralError(
+            "Unable to connect to the server with any of the available transports. ${transportExceptions.join(" ")}"),
+        stackTrace: StackTrace.current,
+      );
       return Future.error(GeneralError(
           "Unable to connect to the server with any of the available transports. ${transportExceptions.join(" ")}"));
     }
+    await ReportingSystem.recordError(
+      error: GeneralError(
+          "None of the transports supported by the client are supported by the server."),
+      stackTrace: StackTrace.current,
+    );
     return Future.error(GeneralError(
         "None of the transports supported by the client are supported by the server."));
   }
 
   ITransport _constructTransport(HttpTransportType transport) {
+    ReportingSystem.recordEvent(
+      message:
+          'HttpConnection._constructTransport() called with transport: $transport',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     switch (transport) {
       case HttpTransportType.webSockets:
         return WebSocketTransport(
@@ -630,16 +713,36 @@ class HttpConnection implements IConnection {
     }
   }
 
-  Future<void> _startTransport(String? url, TransferFormat transferFormat) {
+  Future<void> _startTransport(
+    String? url,
+    TransferFormat transferFormat,
+  ) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection._startTransport() called with url: $url',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     _transport!.onReceive = onreceive;
     _transport!.onClose = _stopConnection;
-    return _transport!.connect(url, transferFormat);
+    await _transport!.connect(url, transferFormat);
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection._startTransport() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
   }
 
   ITransport _resolveTransport(
-      AvailableTransport endpoint,
-      HttpTransportType? requestedTransport,
-      TransferFormat requestedTransferFormat) {
+    AvailableTransport endpoint,
+    HttpTransportType? requestedTransport,
+    TransferFormat requestedTransferFormat,
+  ) {
+    ReportingSystem.recordEvent(
+      message:
+          'HttpConnection._resolveTransport() called with endpoint: ${endpoint.transport}',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     final transport = endpoint.transport;
     if (transport == null) {
       _logger?.finer(
@@ -672,6 +775,11 @@ class HttpConnection implements IConnection {
   }
 
   void _stopConnection({Exception? error}) {
+    ReportingSystem.recordEvent(
+      message: 'HttpConnection._stopConnection() called with error: $error',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     _logger?.finer(
         "HttpConnection.stopConnection(${error ?? "Unknown"}) called while in state $_connectionState.");
 
@@ -727,6 +835,11 @@ class HttpConnection implements IConnection {
         _logger?.severe("HttpConnection.onclose($error) threw error '$e'.");
       }
     }
+    ReportingSystem.recordEvent(
+      message: 'HttpConnection._stopConnection() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
   }
 
   String _resolveNegotiateUrl(String url) {
