@@ -1,6 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+/// A class that provides a way to log events and errors into the error reporting system.
+/// Current implementation uses Sentry.io as the error reporting system.
+/// If Sentry was not configure in the app that is using this library,
+///  the events and errors will only be printed to the console and not sent to
+/// any error reporting system.
 class ReportingSystem {
   /// Logs the given event into the error reporting system.
   static Future<void> recordEvent({
