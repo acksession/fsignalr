@@ -33,6 +33,16 @@ class ReportingSystem {
     );
   }
 
+  /// Records the given error into error reporting system.
+  static Future<void> recordError({
+    required dynamic error,
+    StackTrace? stackTrace,
+  }) async =>
+      await Sentry.captureException(
+        error,
+        stackTrace: stackTrace,
+      );
+
   static SentryLevel _mapToSentryLevel(ReportingSystemEventLevel? level) =>
       switch (level) {
         ReportingSystemEventLevel.debug => SentryLevel.debug,
