@@ -17,3 +17,5 @@ linter:
     - prefer_single_quotes: true
     - unawaited_futures
     - avoid_relative_lib_imports
+    - always_declare_return_types
+    - always_specify_types
