@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fsignalr/src/reporting_system.dart';
 import 'package:logging/logging.dart';
 import 'package:tuple/tuple.dart';
 
@@ -63,6 +64,8 @@ typedef ReconnectedCallback = void Function({String? connectionId});
 
 /// Represents a connection to a SignalR Hub
 class HubConnection {
+  static const String _reportingSystemTag = 'HubConnection';
+
   // Either a string (json) or Uint8List (binary);
   Object? _cachedPingMessage;
   final IConnection _connection;
@@ -189,11 +192,21 @@ class HubConnection {
   /// Returns a Promise that resolves when the connection has been successfully established, or rejects with an error.
   ///
   Future<void>? start() async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection.start called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _startPromise = _startWithStateTransitions();
     return _startPromise;
   }
 
   Future<void> _startWithStateTransitions() async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._startWithStateTransitions called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     if (_connectionState != HubConnectionState.disconnected) {
       return Future.error(GeneralError(
           "Cannot start a HubConnection that is not in the 'Disconnected' state."));
@@ -208,7 +221,11 @@ class HubConnection {
       _connectionState = HubConnectionState.connected;
       _connectionStarted = true;
       _logger?.finer("HubConnection connected successfully.");
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await ReportingSystem.recordError(
+        error: e,
+        stackTrace: stackTrace,
+      );
       _connectionState = HubConnectionState.disconnected;
       _logger?.finer(
           "HubConnection failed to start successfully because of error '$e'.");
@@ -217,6 +234,11 @@ class HubConnection {
   }
 
   _startInternal() async {
+    await ReportingSystem.recordEvent(
+      message: 'HubConnection._startInternal called',
+      stackTrace: StackTrace.current,
+      tags: {'eventSource': _reportingSystemTag},
+    );
     _stopDuringStartError = null;
     _receivedHandshakeResponse = false;
     // Set up the promise before any connection is (re)started otherwise it could race with received messages
@@ -250,7 +272,16 @@ class HubConnection {
         // will cause the calling continuation to get scheduled to run later.
         throw _stopDuringStartError!;
       }
+      await ReportingSystem.recordEvent(
+        message: 'HubConnection._startInternal try block completed successfully',
+        stackTrace: StackTrace.current,
+        tags: {'eventSource': _reportingSystemTag},
+      );
     } catch (e) {
+      await ReportingSystem.recordError(
+        error: e,
+        stackTrace: StackTrace.current,
+      );
       _logger?.finer(
           "Hub handshake failed with error '$e' during start(). Stopping HubConnection.");
 

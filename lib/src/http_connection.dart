@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:fsignalr/src/reporting_system.dart';
 import 'package:logging/logging.dart';
 
 import 'errors.dart';
@@ -191,6 +192,8 @@ class TransportSendQueue {
 }
 
 class HttpConnection implements IConnection {
+  static const String _reportingSystemTag = 'HttpConnection';
+
   // Properties
   static const maxRedirects = 100;
 
@@ -239,6 +242,11 @@ class HttpConnection implements IConnection {
 
   @override
   Future<void> start({TransferFormat? transferFormat}) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.start() called.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     transferFormat = transferFormat ?? TransferFormat.binary;
 
     _logger
@@ -264,15 +272,30 @@ class HttpConnection implements IConnection {
       // We cannot await stopPromise inside startInternal since stopInternal awaits the startInternalPromise.
       await _stopPromise;
 
+      await ReportingSystem.recordEvent(
+        message: 'HttpConnection.start() failed.',
+        tags: {'eventSource': _reportingSystemTag},
+        stackTrace: StackTrace.current,
+      );
       return Future.error(GeneralError(message));
     } else if (_connectionState != ConnectionState.connected) {
       // stop() was called and transitioned the client into the Disconnecting state.
       const message =
           "HttpConnection.startInternal completed gracefully but didn't enter the connection into the connected state!";
       _logger?.severe(message);
+      await ReportingSystem.recordEvent(
+        message: 'HttpConnection.start() failed.',
+        tags: {'eventSource': _reportingSystemTag},
+        stackTrace: StackTrace.current,
+      );
       return Future.error(GeneralError(message));
     }
 
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.start() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     _connectionStarted = true;
   }
 
@@ -291,6 +314,11 @@ class HttpConnection implements IConnection {
 
   @override
   Future<void>? stop({Exception? error}) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.stop() called.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     if (_connectionState == ConnectionState.disconnected) {
       _logger?.finer(
           "Call to HttpConnection.stop($error) ignored because the connection is already in the disconnected state.");
@@ -315,6 +343,11 @@ class HttpConnection implements IConnection {
   }
 
   Future<void> _stopInternal({Exception? error}) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.stopInternal() called.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     // Set error as soon as possible otherwise there is a race between
     // the transport closing and providing an error and the error from a close message
     // We would prefer the close message error.
@@ -343,9 +376,19 @@ class HttpConnection implements IConnection {
           "HttpConnection.transport is undefined in HttpConnection.stop() because start() failed.");
       _stopConnection();
     }
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.stopInternal() completed.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
   }
 
   Future<void> _startInternal(TransferFormat transferFormat) async {
+    await ReportingSystem.recordEvent(
+      message: 'HttpConnection.startInternal() called.',
+      tags: {'eventSource': _reportingSystemTag},
+      stackTrace: StackTrace.current,
+    );
     // Store the original base url and the access token factory since they may change
     // as part of negotiating
     var url = baseUrl;
@@ -368,6 +411,12 @@ class HttpConnection implements IConnection {
         var redirects = 0;
 
         do {
+          await ReportingSystem.recordEvent(
+            message:
+                'HttpConnection.getNegotiationResponse() called with url: $url',
+            tags: {'eventSource': _reportingSystemTag},
+            stackTrace: StackTrace.current,
+          );
           negotiateResponse = await _getNegotiationResponse(url!);
           // the user tries to stop the connection when it is being started
           if (_connectionState == ConnectionState.disconnecting ||
@@ -398,6 +447,11 @@ class HttpConnection implements IConnection {
           redirects++;
         } while (
             negotiateResponse.isRedirectResponse && redirects < maxRedirects);
+        await ReportingSystem.recordEvent(
+          message: 'HttpConnection._startInternal\'s do/while loop completed.',
+          tags: {'eventSource': _reportingSystemTag},
+          stackTrace: StackTrace.current,
+        );
 
         if ((redirects == maxRedirects) &&
             negotiateResponse.isRedirectResponse) {
@@ -426,7 +480,17 @@ class HttpConnection implements IConnection {
       // stop() is waiting on us via this.startInternalPromise so keep this.transport around so it can clean up.
       // This is the only case startInternal can exit in neither the connected nor disconnected state because stopConnection()
       // will transition to the disconnected state. start() will wait for the transition using the stopPromise.
+
+      await ReportingSystem.recordEvent(
+        message: 'HttpConnection.startInternal() completed.',
+        tags: {'eventSource': _reportingSystemTag},
+        stackTrace: StackTrace.current,
+      );
     } catch (e) {
+      await ReportingSystem.recordError(
+        error: e,
+        stackTrace: StackTrace.current,
+      );
       _logger?.severe("Failed to start the connection: ${e.toString()}");
       _connectionState = ConnectionState.disconnected;
       _transport = null;
