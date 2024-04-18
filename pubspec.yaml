@@ -1,6 +1,6 @@
 name: fsignalr
 description: "Signalr client package for flutter for integrating real-time communication using signalr protocol."
-version: 0.0.1
+version: 1.0.0
 homepage: https://github.com/acksession/fsignalr
 
 environment:
